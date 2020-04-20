@@ -57,11 +57,12 @@ public abstract class AbstractPrometheusReporter implements MetricReporter {
 
 	protected final Logger log = LoggerFactory.getLogger(getClass());
 
+	private static final int maxTagValueLength = 64;
 	private static final Pattern UNALLOWED_CHAR_PATTERN = Pattern.compile("[^a-zA-Z0-9:_]");
 	private static final CharacterFilter CHARACTER_FILTER = new CharacterFilter() {
 		@Override
 		public String filterCharacters(String input) {
-			return replaceInvalidChars(input);
+			return replaceAndTrimInvalidChars(input, maxTagValueLength);
 		}
 	};
 
@@ -78,6 +79,29 @@ public abstract class AbstractPrometheusReporter implements MetricReporter {
 	}
 
 	private CharacterFilter labelValueCharactersFilter = CHARACTER_FILTER;
+
+	static String replaceAndTrimInvalidChars(String str, int maxLength) {
+		char[] chars = null;
+		final int strLen = str.length();
+		int pos = 0;
+
+		for (int i = 0; i < strLen && i < maxLength; i++) {
+			final char c = str.charAt(i);
+			if (!((c >= '0' && c <= '9')
+					|| (c >= 'a' && c <= 'z')
+					|| (c >= 'A') && c <= 'Z')) {
+				if (chars == null) {
+					chars = str.toCharArray();
+				}
+				chars[pos] = '_';
+			} else if (chars != null) {
+				chars[pos] = c;
+			}
+			pos++;
+		}
+
+		return chars == null ? str.substring(0, Math.min(maxLength, strLen)) : new String(chars, 0, pos);
+	}
 
 	@Override
 	public void open(MetricConfig config) {
