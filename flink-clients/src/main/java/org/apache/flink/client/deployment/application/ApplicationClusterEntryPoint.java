@@ -19,6 +19,8 @@
 package org.apache.flink.client.deployment.application;
 
 import org.apache.flink.client.program.PackagedProgram;
+import org.apache.flink.configuration.ConfigOption;
+import org.apache.flink.configuration.ConfigOptions;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.concurrent.ScheduledExecutor;
 import org.apache.flink.runtime.dispatcher.ArchivedExecutionGraphStore;
@@ -28,10 +30,14 @@ import org.apache.flink.runtime.dispatcher.runner.DefaultDispatcherRunnerFactory
 import org.apache.flink.runtime.entrypoint.ClusterEntrypoint;
 import org.apache.flink.runtime.entrypoint.component.DefaultDispatcherResourceManagerComponentFactory;
 import org.apache.flink.runtime.entrypoint.component.DispatcherResourceManagerComponentFactory;
+import org.apache.flink.runtime.entrypoint.component.FileJobGraphRetriever;
 import org.apache.flink.runtime.resourcemanager.ResourceManagerFactory;
 import org.apache.flink.runtime.rest.JobRestEndpointFactory;
 
+import static org.apache.flink.runtime.util.ClusterEntrypointUtils.tryFindUserLibDirectory;
 import static org.apache.flink.util.Preconditions.checkNotNull;
+
+import java.io.IOException;
 
 /**
  * Base class for cluster entry points targeting executing applications in "Application Mode".
@@ -44,6 +50,21 @@ public class ApplicationClusterEntryPoint extends ClusterEntrypoint {
 
 	private final ResourceManagerFactory<?> resourceManagerFactory;
 
+	enum RETRIEVER {
+		CLASSPATH,
+		FILE
+	}
+
+	public static final ConfigOption<String> JOB_GRAPH_RETRIEVER = ConfigOptions
+			.key("internal.job-graph-retriever")
+			.stringType()
+			.defaultValue("classpath");
+
+	public static final ConfigOption<String> JOB_GRAPH_RETRIEVER_FILE_PATH = ConfigOptions
+			.key("internal.job-graph-retriever.file.path")
+			.stringType()
+			.defaultValue("");
+
 	protected ApplicationClusterEntryPoint(
 			final Configuration configuration,
 			final PackagedProgram program,
@@ -54,13 +75,21 @@ public class ApplicationClusterEntryPoint extends ClusterEntrypoint {
 	}
 
 	@Override
-	protected DispatcherResourceManagerComponentFactory createDispatcherResourceManagerComponentFactory(final Configuration configuration) {
-		return new DefaultDispatcherResourceManagerComponentFactory(
-				new DefaultDispatcherRunnerFactory(
-						ApplicationDispatcherLeaderProcessFactoryFactory
-								.create(configuration, SessionDispatcherFactory.INSTANCE, program)),
-				resourceManagerFactory,
-				JobRestEndpointFactory.INSTANCE);
+	protected DispatcherResourceManagerComponentFactory createDispatcherResourceManagerComponentFactory(final Configuration configuration) throws IOException {
+		if (configuration.getString(JOB_GRAPH_RETRIEVER).equalsIgnoreCase(RETRIEVER.CLASSPATH.name())) {
+			return new DefaultDispatcherResourceManagerComponentFactory(
+					new DefaultDispatcherRunnerFactory(
+							ApplicationDispatcherLeaderProcessFactoryFactory
+									.create(configuration, SessionDispatcherFactory.INSTANCE, program)),
+					resourceManagerFactory,
+					JobRestEndpointFactory.INSTANCE);
+		} else {
+			return DefaultDispatcherResourceManagerComponentFactory.createJobComponentFactory(
+					resourceManagerFactory,
+					new FileJobGraphRetriever(
+							configuration.getString(JOB_GRAPH_RETRIEVER_FILE_PATH),
+							tryFindUserLibDirectory().orElse(null)));
+		}
 	}
 
 	@Override
