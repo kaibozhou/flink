@@ -89,6 +89,12 @@ public class FlinkSqlParserImplTest extends SqlParserTest {
 	}
 
 	@Test
+	public void testBeginStatementSet() {
+		sql("begin statement set").ok("BEGIN STATEMENT SET");
+		sql("end").ok("END");
+	}
+
+	@Test
 	public void testUseDataBase() {
 		sql("use default_db").ok("USE `DEFAULT_DB`");
 		sql("use defaultCatalog.default_db").ok("USE `DEFAULTCATALOG`.`DEFAULT_DB`");

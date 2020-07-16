@@ -58,6 +58,26 @@ SqlShowCatalogs SqlShowCatalogs() :
     }
 }
 
+SqlBeginStatementSet SqlBeginStatementSet() :
+{
+}
+{
+    <BEGIN> <STATEMENT> <SET>
+    {
+        return new SqlBeginStatementSet(getPos());
+    }
+}
+
+SqlEnd SqlEnd() :
+{
+}
+{
+    <END>
+    {
+        return new SqlEnd(getPos());
+    }
+}
+
 SqlDescribeCatalog SqlDescribeCatalog() :
 {
     SqlIdentifier catalogName;
